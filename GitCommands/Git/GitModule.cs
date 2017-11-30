@@ -3024,9 +3024,28 @@ namespace GitCommands
             if (!oldFileName.IsNullOrEmpty())
                 oldFileName = oldFileName.Quote();
 
+            // If B is the current working version of the file, don't create a temp file; let us directly edit the working file in the difftool
+            if (IsHeadRev(revision1) && FileIsUnchanged(filename))
+                revision1 = string.Empty;
+
             string args = string.Join(" ", extraDiffArguments, revision2.QuoteNE(), revision1.QuoteNE(), "--", filename, oldFileName);
             RunGitCmdDetached("difftool --gui --no-prompt " + args);
             return output;
+        }
+
+        private bool IsHeadRev(string revision)
+        {
+            var revResult = RunGitCmdResult("rev-parse --verify HEAD");
+            return revResult.ExitedSuccessfully && revResult.StdOutput.Trim() == revision;
+        }
+
+        private bool FileIsUnchanged(string filename)
+        {
+            return new[] { "diff-files --quiet", "diff-index --quiet head" }.All(cmd =>
+            {
+                var diffResult = RunGitCmdResult(string.Join(" ", cmd, filename.QuoteNE()));
+                return diffResult.ExitedSuccessfully && diffResult.ExitCode == 0;
+            });
         }
 
         public string RevParse(string revisionExpression)
